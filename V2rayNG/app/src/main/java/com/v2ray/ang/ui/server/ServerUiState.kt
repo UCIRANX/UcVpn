@@ -9,6 +9,11 @@ import com.v2ray.ang.AppConfig.REALITY
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_ADDRESS_V4
 import com.v2ray.ang.AppConfig.WIREGUARD_LOCAL_MTU
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.enums.AetherIpVersion
+import com.v2ray.ang.enums.AetherObfuscation
+import com.v2ray.ang.enums.AetherProtocol
+import com.v2ray.ang.enums.AetherScanMode
+import com.v2ray.ang.enums.AetherTransport
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.enums.NetworkType
 import com.v2ray.ang.extension.nullIfBlank
@@ -63,7 +68,17 @@ class ServerUiState(
     echConfigList: String = "",
     verifyPeerCertByName: String = "",
     pinnedCA256: String = "",
-    isFetchingCert: Boolean = false
+    isFetchingCert: Boolean = false,
+    aetherProtocol: String = AetherProtocol.MASQUE.type,
+    aetherTransport: String = AetherTransport.HTTP3.type,
+    aetherScanMode: String = AetherScanMode.BALANCED.type,
+    aetherObfuscation: String = AetherObfuscation.BALANCED.type,
+    aetherIpVersion: String = AetherIpVersion.V4.type,
+    aetherWiwOuter: String = "",
+    aetherWiwInner: String = "",
+    aetherFragment: Boolean = false,
+    aetherFragmentSize: String = "",
+    aetherFragmentDelay: String = ""
 ) {
     var configType by mutableStateOf(configType)
     var remarks by mutableStateOf(remarks)
@@ -114,6 +129,16 @@ class ServerUiState(
     var verifyPeerCertByName by mutableStateOf(verifyPeerCertByName)
     var pinnedCA256 by mutableStateOf(pinnedCA256)
     var isFetchingCert by mutableStateOf(isFetchingCert)
+    var aetherProtocol by mutableStateOf(aetherProtocol)
+    var aetherTransport by mutableStateOf(aetherTransport)
+    var aetherScanMode by mutableStateOf(aetherScanMode)
+    var aetherObfuscation by mutableStateOf(aetherObfuscation)
+    var aetherIpVersion by mutableStateOf(aetherIpVersion)
+    var aetherWiwOuter by mutableStateOf(aetherWiwOuter)
+    var aetherWiwInner by mutableStateOf(aetherWiwInner)
+    var aetherFragment by mutableStateOf(aetherFragment)
+    var aetherFragmentSize by mutableStateOf(aetherFragmentSize)
+    var aetherFragmentDelay by mutableStateOf(aetherFragmentDelay)
 
     fun toProfileItem(initialConfig: ProfileItem): ProfileItem {
         val isVmess = configType == EConfigType.VMESS
@@ -122,6 +147,7 @@ class ServerUiState(
         val isSocksOrHttp = configType == EConfigType.SOCKS || configType == EConfigType.HTTP
         val isWireguard = configType == EConfigType.WIREGUARD
         val isHysteria2 = configType == EConfigType.HYSTERIA2
+        val isAether = configType == EConfigType.AETHER
 
         return initialConfig.copy(
             configType = configType,
@@ -181,7 +207,17 @@ class ServerUiState(
             mldsa65Verify = mldsa65Verify,
             echConfigList = echConfigList,
             verifyPeerCertByName = verifyPeerCertByName,
-            pinnedCA256 = pinnedCA256
+            pinnedCA256 = pinnedCA256,
+            aetherProtocol = if (isAether) aetherProtocol else null,
+            aetherTransport = if (isAether) aetherTransport else null,
+            aetherScanMode = if (isAether) aetherScanMode else null,
+            aetherObfuscation = if (isAether) aetherObfuscation else null,
+            aetherIpVersion = if (isAether) aetherIpVersion else null,
+            aetherWiwOuter = if (isAether) aetherWiwOuter.nullIfBlank() else null,
+            aetherWiwInner = if (isAether) aetherWiwInner.nullIfBlank() else null,
+            aetherFragment = if (isAether) aetherFragment else null,
+            aetherFragmentSize = if (isAether) aetherFragmentSize.nullIfBlank() else null,
+            aetherFragmentDelay = if (isAether) aetherFragmentDelay.nullIfBlank() else null
         )
     }
 
@@ -193,7 +229,8 @@ class ServerUiState(
                 configType = initialConfig.configType,
                 remarks = initialConfig.remarks,
                 address = initialConfig.server ?: "",
-                port = initialConfig.serverPort ?: DEFAULT_PORT.toString(),
+                port = initialConfig.serverPort
+                    ?: if (initialConfig.configType == EConfigType.AETHER) "" else DEFAULT_PORT.toString(),
                 password = initialConfig.password ?: "",
                 method = initialConfig.method ?: "",
                 flow = initialConfig.flow ?: "",
@@ -237,7 +274,18 @@ class ServerUiState(
                 mldsa65Verify = initialConfig.mldsa65Verify ?: "",
                 echConfigList = initialConfig.echConfigList ?: "",
                 verifyPeerCertByName = initialConfig.verifyPeerCertByName ?: "",
-                pinnedCA256 = initialConfig.pinnedCA256 ?: ""
+                pinnedCA256 = initialConfig.pinnedCA256 ?: "",
+                // Normalized so the dropdowns always hold one of their own values, whatever was persisted.
+                aetherProtocol = AetherProtocol.fromString(initialConfig.aetherProtocol).type,
+                aetherTransport = AetherTransport.fromString(initialConfig.aetherTransport).type,
+                aetherScanMode = AetherScanMode.fromString(initialConfig.aetherScanMode).type,
+                aetherObfuscation = AetherObfuscation.fromString(initialConfig.aetherObfuscation).type,
+                aetherIpVersion = AetherIpVersion.fromString(initialConfig.aetherIpVersion).type,
+                aetherWiwOuter = initialConfig.aetherWiwOuter ?: "",
+                aetherWiwInner = initialConfig.aetherWiwInner ?: "",
+                aetherFragment = initialConfig.aetherFragment ?: false,
+                aetherFragmentSize = initialConfig.aetherFragmentSize ?: "",
+                aetherFragmentDelay = initialConfig.aetherFragmentDelay ?: ""
             )
 
         fun from(

@@ -134,9 +134,18 @@ class MainViewModel(
                 updateRunningState(true)
             }
 
-            MainServiceEvent.StateStartFailure -> {
-                toastError(R.string.toast_services_failure)
+            is MainServiceEvent.StateStartFailure -> {
+                // The daemon attaches a reason only when it is a localized resource string, e.g.
+                // the Aether core stopping or missing on this ABI; the generic text is the fallback.
+                val reason = event.message.trim()
+                if (reason.isEmpty()) toastError(R.string.toast_services_failure) else toastError(reason)
                 updateRunningState(false)
+            }
+
+            is MainServiceEvent.StateConnecting -> {
+                if (uiState.value.isRunning) {
+                    _uiState.update { it.copy(status = MainStatus.Connecting(event.message)) }
+                }
             }
 
             MainServiceEvent.StateStopSuccess -> updateRunningState(false)
@@ -217,6 +226,7 @@ class MainViewModel(
     internal fun formatStatus(status: MainStatus): String = when (status) {
         MainStatus.Disconnected -> dataSource.getString(R.string.connection_not_connected)
         MainStatus.Connected -> dataSource.getString(R.string.connection_connected)
+        is MainStatus.Connecting -> status.message
         MainStatus.Testing -> dataSource.getString(R.string.connection_test_testing)
         is MainStatus.TestProgress -> dataSource.getString(
             R.string.connection_running_task_left,
@@ -923,8 +933,7 @@ class MainViewModel(
             state.copy(
                 isRunning = running,
                 isTesting = testRequests.isTesting,
-                status = if (!clearTestingText && state.isRunning == running) state.status
-                else if (running) MainStatus.Connected else MainStatus.Disconnected
+                status = runningStatus(state.status, state.isRunning, running, clearTestingText)
             )
         }
     }
@@ -940,6 +949,24 @@ class MainViewModel(
         super.onCleared()
     }
 
+    companion object {
+        private const val TEST_RESULT_FLUSH_INTERVAL_MS = 500L
+
+        /**
+         * The status after a running or stopped signal. A test text survives a repeated signal
+         * that changes nothing, but a connecting status does not: the daemon repeats the
+         * connecting signal right after a running one whenever the tunnel is still on its way.
+         */
+        internal fun runningStatus(
+            current: MainStatus,
+            wasRunning: Boolean,
+            running: Boolean,
+            clearTestingText: Boolean,
+        ): MainStatus =
+            if (!clearTestingText && wasRunning == running && current !is MainStatus.Connecting) current
+            else if (running) MainStatus.Connected else MainStatus.Disconnected
+    }
+
     // ---------- Factory ----------
     class Factory(private val application: Application, private val dataSource: MainDataSource) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
@@ -949,9 +976,5 @@ class MainViewModel(
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
-    }
-
-    private companion object {
-        const val TEST_RESULT_FLUSH_INTERVAL_MS = 500L
     }
 }
