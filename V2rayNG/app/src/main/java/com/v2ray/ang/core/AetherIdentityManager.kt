@@ -8,6 +8,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class AetherIdentity(
     val deviceId: String,
@@ -100,23 +101,28 @@ object AetherIdentityManager {
         previousDir: File,
         provision: suspend () -> Boolean,
     ): Boolean {
-        val setAside = withContext(Dispatchers.IO) {
-            previousDir.deleteRecursively()
-            !workDir.exists() || workDir.renameTo(previousDir)
-        }
-        if (!setAside) return false
-
+        // A cancellation can be delivered as the result of a blocking step comes back, after the step
+        // itself has run; whether the keys were set aside is therefore recorded inside that step, and
+        // the finally block restores from the record rather than from a value the step returned.
+        val setAside = AtomicBoolean(false)
         var renewed = false
         try {
+            withContext(Dispatchers.IO) {
+                previousDir.deleteRecursively()
+                setAside.set(!workDir.exists() || workDir.renameTo(previousDir))
+            }
+            if (!setAside.get()) return false
             withContext(Dispatchers.IO) { workDir.mkdirs() }
             renewed = provision()
         } finally {
-            withContext(NonCancellable + Dispatchers.IO) {
-                if (renewed) {
-                    previousDir.deleteRecursively()
-                } else {
-                    workDir.deleteRecursively()
-                    if (previousDir.exists()) previousDir.renameTo(workDir)
+            if (setAside.get()) {
+                withContext(NonCancellable + Dispatchers.IO) {
+                    if (renewed) {
+                        previousDir.deleteRecursively()
+                    } else {
+                        workDir.deleteRecursively()
+                        if (previousDir.exists()) previousDir.renameTo(workDir)
+                    }
                 }
             }
         }

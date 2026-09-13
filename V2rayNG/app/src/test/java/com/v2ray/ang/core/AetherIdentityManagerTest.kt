@@ -1,6 +1,7 @@
 package com.v2ray.ang.core
 
 import com.v2ray.ang.enums.AetherProtocol
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -14,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class AetherIdentityManagerTest {
 
@@ -136,16 +138,45 @@ class AetherIdentityManagerTest {
     fun aCancelledRenewalRestoresTheOldKeys() = runBlocking {
         val dir = workDir(AetherIdentityManager.MASQUE_FILE to keyFile("old"))
         val previous = File(folder.root, "aether-previous")
+        val provisioning = CompletableDeferred<Unit>()
 
         val job = launch {
             AetherIdentityManager.replaceIdentities(dir, previous) {
                 File(dir, AetherIdentityManager.MASQUE_FILE).writeText(keyFile("half"))
+                provisioning.complete(Unit)
                 awaitCancellation()
             }
         }
-        while (!File(dir, AetherIdentityManager.MASQUE_FILE).exists() || previous.listFiles().isNullOrEmpty()) yield()
+        provisioning.await()
         job.cancelAndJoin()
 
+        assertEquals("old", AetherIdentityManager.status(dir, AetherProtocol.MASQUE).primary?.deviceId)
+        assertFalse(previous.exists())
+    }
+
+    @Test
+    fun aCancellationLandingRightAfterTheKeysWereSetAsideStillRestoresThem() = runBlocking {
+        val dir = workDir(AetherIdentityManager.MASQUE_FILE to keyFile("old"))
+        val previous = File(folder.root, "aether-previous")
+        var provisioned = false
+
+        val job = launch {
+            AetherIdentityManager.replaceIdentities(dir, previous) {
+                provisioned = true
+                true
+            }
+        }
+        // One yield lets the renewal hand its first step to the IO dispatcher. Waiting for that step
+        // without suspending keeps this single-threaded event loop busy, so the step's result can only
+        // be delivered after the cancellation below: the moment that used to leave the keys set aside.
+        yield()
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (!previous.exists() && System.nanoTime() < deadline) Thread.sleep(1)
+        assertTrue(previous.exists())
+        job.cancel()
+        job.join()
+
+        assertFalse(provisioned)
         assertEquals("old", AetherIdentityManager.status(dir, AetherProtocol.MASQUE).primary?.deviceId)
         assertFalse(previous.exists())
     }
