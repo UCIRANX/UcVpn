@@ -26,10 +26,17 @@ import java.util.concurrent.TimeUnit
 
 object AetherDelayTester {
 
-    private const val START_TIMEOUT_MS = 60_000L
-    private const val REQUEST_TIMEOUT_MS = 12_000L
+    /**
+     * The whole test, tunnel start included. The native probe gives every other profile a 12-second
+     * HTTP client and the current-server test a 12-second context; an Aether profile gets the same
+     * budget, so a tunnel that cannot come up fails within it instead of after a minute-long scan.
+     */
+    internal const val TEST_BUDGET_MS = 12_000L
     private const val POLL_INTERVAL_MS = 250L
     private const val ATTEMPTS = 2
+
+    /** No further attempt starts with less than this left; it could not tell anything. */
+    private const val MIN_REQUEST_MS = 1_000L
 
     /** Port every Cloudflare edge answers on TCP, whatever port the tunnel itself uses. */
     private const val EDGE_TCP_PORT = 443
@@ -122,24 +129,25 @@ object AetherDelayTester {
 
     private suspend fun throughNewTunnel(context: Context, guid: String, profile: ProfileItem, url: String): Long {
         val port = withContext(Dispatchers.IO) { Utils.findRandomFreePort() }
+        // The clock starts before the spawn: the budget covers the whole test, as it does for every other profile.
+        val deadline = deadlineAfter(TEST_BUDGET_MS)
         return AetherCoreManager.withProcess(
             context = context,
             arguments = AetherCoreManager.buildArguments(profile, port),
             source = "aether-test",
             onOutput = {},
         ) { output ->
-            if (!awaitListening(port, output)) {
+            if (!awaitListening(port, output, deadline)) {
                 LogUtil.w(AppConfig.TAG, "AetherTest: the tunnel did not come up, guid=$guid")
                 return@withProcess -1L
             }
-            val delay = withContext(Dispatchers.IO) { requestDelay(port, url) }
+            val delay = withContext(Dispatchers.IO) { requestDelay(port, url, deadline) }
             if (delay < 0) LogUtil.w(AppConfig.TAG, "AetherTest: no answer through the tunnel, guid=$guid")
             delay
         } ?: -1L
     }
 
-    private suspend fun awaitListening(port: Int, output: ReceiveChannel<String>): Boolean {
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(START_TIMEOUT_MS)
+    private suspend fun awaitListening(port: Int, output: ReceiveChannel<String>, deadline: Long): Boolean {
         while (System.nanoTime() < deadline) {
             while (output.tryReceive().isSuccess) Unit
             if (output.isClosedForReceive) return false
@@ -149,7 +157,11 @@ object AetherDelayTester {
         return false
     }
 
-    internal fun requestDelay(port: Int, url: String): Long {
+    /**
+     * The best of up to [ATTEMPTS] requests through the SOCKS port at [port], each given what is
+     * left of the budget ending at [deadline]; -1 when none of them was answered in time.
+     */
+    internal fun requestDelay(port: Int, url: String, deadline: Long = deadlineAfter(TEST_BUDGET_MS)): Long {
         val request = try {
             Request.Builder().url(url).build()
         } catch (_: IllegalArgumentException) {
@@ -157,15 +169,29 @@ object AetherDelayTester {
         }
         val client = OkHttpClient.Builder()
             .proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress(AppConfig.LOOPBACK, port)))
-            .callTimeout(REQUEST_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .build()
         return try {
-            List(ATTEMPTS) { timedRequest(client, request) }.filterNotNull().minOrNull() ?: -1L
+            var best = -1L
+            repeat(ATTEMPTS) {
+                val remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
+                if (remaining < MIN_REQUEST_MS) return best
+                // Derived clients share the pool, so a second attempt measures a warm connection. The connect
+                // timeout is set as well because the SOCKS handshake happens inside the connect.
+                val attempt = client.newBuilder()
+                    .connectTimeout(remaining, TimeUnit.MILLISECONDS)
+                    .callTimeout(remaining, TimeUnit.MILLISECONDS)
+                    .build()
+                val time = timedRequest(attempt, request) ?: return@repeat
+                if (best < 0 || time < best) best = time
+            }
+            best
         } finally {
             client.connectionPool.evictAll()
             client.dispatcher.executorService.shutdown()
         }
     }
+
+    private fun deadlineAfter(ms: Long): Long = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ms)
 
     private fun timedRequest(client: OkHttpClient, request: Request): Long? = try {
         val started = System.nanoTime()

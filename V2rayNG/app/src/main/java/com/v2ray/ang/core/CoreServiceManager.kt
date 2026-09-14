@@ -437,7 +437,8 @@ object CoreServiceManager {
 
         connectionTestScope.coroutineContext.cancelChildren()
         connectionTestScope.launch {
-            if (currentConfig?.configType == EConfigType.AETHER && !AetherCoreManager.awaitListening(AETHER_WARM_UP_MS)) {
+            // The same budget every other profile's probe gets; a tunnel still scanning past it is reported, not waited for.
+            if (currentConfig?.configType == EConfigType.AETHER && !AetherCoreManager.awaitListening(AetherDelayTester.TEST_BUDGET_MS)) {
                 val reason = if (AetherCoreManager.isRunning) R.string.aether_core_connecting else R.string.aether_core_stopped
                 val stalled = ConnectionTestResult(delayMillis = -1L, errorMessage = service.getString(reason))
                 withContext(Dispatchers.Main.immediate) {

@@ -12,6 +12,7 @@ import java.io.IOException
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 class AetherDelayTesterTest {
@@ -132,6 +133,44 @@ class AetherDelayTesterTest {
         val closedPort = ServerSocket(0).use { it.localPort }
         assertEquals(-1L, AetherDelayTester.requestDelay(closedPort, "http://127.0.0.1:1/generate_204"))
         assertEquals(-1L, AetherDelayTester.requestDelay(closedPort, "not a url"))
+    }
+
+    @Test
+    fun aProbeThatGetsNoAnswerGivesUpWithinItsBudget() {
+        StallingSocksStub().use { socks ->
+            val started = System.nanoTime()
+            val deadline = started + TimeUnit.MILLISECONDS.toNanos(1_500)
+            val delay = AetherDelayTester.requestDelay(socks.port, "http://127.0.0.1:1/generate_204", deadline)
+            val elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+            assertEquals(-1L, delay)
+            // One attempt within the budget, no second one, and nothing left to OkHttp's own 10-second connect timeout.
+            assertTrue("gave up after $elapsedMs ms", elapsedMs < 6_000)
+        }
+    }
+
+    /** Accepts connections and never answers, like a tunnel whose far end is gone. */
+    private class StallingSocksStub : AutoCloseable {
+        private val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
+        private val clients = mutableListOf<Socket>()
+        val port: Int get() = server.localPort
+
+        init {
+            thread(isDaemon = true) {
+                while (true) {
+                    val client = try {
+                        server.accept()
+                    } catch (_: IOException) {
+                        return@thread
+                    }
+                    synchronized(clients) { clients.add(client) }
+                }
+            }
+        }
+
+        override fun close() {
+            server.close()
+            synchronized(clients) { clients.forEach { runCatching { it.close() } } }
+        }
     }
 
     private class HttpStub(private val status: String) : AutoCloseable {
