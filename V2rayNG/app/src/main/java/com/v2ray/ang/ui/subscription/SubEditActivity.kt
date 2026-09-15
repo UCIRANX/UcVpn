@@ -107,8 +107,19 @@ class SubEditActivity : BaseComponentActivity() {
         MmkvManager.encodeSubscription(editSubId, subItem)
         SubscriptionUpdater.syncOne(subId = editSubId)
         SettingsChangeManager.makeSetupGroupTab()
-        toastSuccess(R.string.toast_success)
-        finish()
+
+        if (subItem.url.isNotEmpty() && subItem.enabled) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                AngConfigManager.updateConfigViaSub(SubscriptionCache(editSubId, subItem))
+                withContext(Dispatchers.Main) {
+                    toastSuccess(R.string.toast_success)
+                    finish()
+                }
+            }
+        } else {
+            toastSuccess(R.string.toast_success)
+            finish()
+        }
         return true
     }
 
