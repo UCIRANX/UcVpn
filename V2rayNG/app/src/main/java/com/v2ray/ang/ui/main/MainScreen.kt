@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -192,7 +190,7 @@ fun MainScreen(
                     NavigationBarItem(
                         selected = selectedTab == MainBottomTab.Home,
                         onClick = { selectedTab = MainBottomTab.Home },
-                        icon = { Icon(imageVector = Icons.Default.Home, contentDescription = null) },
+                        icon = { Icon(painterResource(R.drawable.ic_home_24dp), contentDescription = null) },
                         label = { Text(stringResource(R.string.title_home)) }
                     )
                     NavigationBarItem(
