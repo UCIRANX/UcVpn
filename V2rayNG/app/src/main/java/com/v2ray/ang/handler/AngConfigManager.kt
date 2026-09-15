@@ -192,15 +192,17 @@ object AngConfigManager {
                 count = parseCustomConfigServer(server, subid, append)
             }
 
-            var countSub = parseBatchSubscription(server)
-            if (countSub <= 0) {
-                countSub = parseBatchSubscription(Utils.decode(server))
+            var addedSubGuids = parseBatchSubscription(server)
+            if (addedSubGuids.isEmpty()) {
+                addedSubGuids = parseBatchSubscription(Utils.decode(server))
             }
-            if (countSub > 0) {
-                updateConfigViaSubAll()
+            addedSubGuids.forEach { newSubGuid ->
+                MmkvManager.decodeSubscription(newSubGuid)?.let { subItem ->
+                    updateConfigViaSub(SubscriptionCache(newSubGuid, subItem))
+                }
             }
 
-            count to countSub
+            count to addedSubGuids.size
         } catch (e: ProfileStorageException) {
             LogUtil.e(AppConfig.TAG, "Failed to store imported profiles", e)
             0 to 0
@@ -213,25 +215,25 @@ object AngConfigManager {
      * @param servers The servers string.
      * @return The number of subscriptions parsed.
      */
-    private fun parseBatchSubscription(servers: String?): Int {
+    private fun parseBatchSubscription(servers: String?): List<String> {
         try {
             if (servers == null) {
-                return 0
+                return emptyList()
             }
 
-            var count = 0
+            val addedGuids = mutableListOf<String>()
             servers.lines()
                 .distinct()
                 .forEach { str ->
                     if (Utils.isValidSubUrl(str)) {
-                        count += importUrlAsSubscription(str)
+                        importUrlAsSubscription(str)?.let { addedGuids.add(it) }
                     }
                 }
-            return count
+            return addedGuids
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to parse batch subscription", e)
         }
-        return 0
+        return emptyList()
     }
 
     /**
@@ -620,19 +622,18 @@ object AngConfigManager {
      * @param url The URL.
      * @return The number of subscriptions imported.
      */
-    private fun importUrlAsSubscription(url: String): Int {
+    private fun importUrlAsSubscription(url: String): String? {
         val subscriptions = MmkvManager.decodeSubscriptions()
         subscriptions.forEach {
             if (it.subscription.url == url) {
-                return 0
+                return null
             }
         }
         val uri = URI(Utils.fixIllegalUrl(url))
         val subItem = SubscriptionItem()
         subItem.remarks = uri.fragment ?: "import sub"
         subItem.url = url
-        MmkvManager.encodeSubscription("", subItem)
-        return 1
+        return MmkvManager.encodeSubscription("", subItem)
     }
 
     /** Generates a description for the profile.
