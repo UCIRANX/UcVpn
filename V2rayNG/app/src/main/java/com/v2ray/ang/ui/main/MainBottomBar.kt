@@ -47,13 +47,12 @@ fun MainBottomBar(
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
                 .clickable(onClick = { onAction(MainAction.TestCurrentServer) })
-                .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
             AppDivider()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
+                    .height(44.dp)
                     .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -72,7 +71,7 @@ fun MainBottomBar(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(end = 24.dp)
-                .offset(y = (-28).dp)
+                .offset(y = (-20).dp)
                 .navigationBarsPadding(),
             containerColor = if (isRunning) colorFabActive
             else if (isDarkTheme) colorFabInactiveDark
@@ -84,7 +83,7 @@ fun MainBottomBar(
                 contentDescription = stringResource(
                     if (isRunning) R.string.acc_stop else R.string.acc_start
                 ),
-                tint = Color.White,
+                tint = if (isRunning) Color.Black else Color.White,
                 modifier = Modifier.size(24.dp)
             )
         }
