@@ -2,8 +2,10 @@ package com.v2ray.ang.ui.main
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -178,7 +180,7 @@ fun MainScreen(
             }
         },
         bottomBar = {
-            Column {
+            Column(modifier = Modifier.navigationBarsPadding()) {
                 if (selectedTab == MainBottomTab.Home) {
                     MainBottomBar(
                         displayText = displayText,
@@ -187,7 +189,10 @@ fun MainScreen(
                         onAction = onAction
                     )
                 }
-                NavigationBar(modifier = Modifier.height(56.dp)) {
+                NavigationBar(
+                    windowInsets = WindowInsets(0),
+                    modifier = Modifier.height(56.dp)
+                ) {
                     NavigationBarItem(
                         selected = selectedTab == MainBottomTab.Home,
                         onClick = { selectedTab = MainBottomTab.Home },
