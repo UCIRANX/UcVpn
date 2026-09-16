@@ -74,6 +74,7 @@ fun AppTopBar(
     searchPlaceholder: String? = null,
     navigationIcon: @Composable (() -> Unit)? = null,
     onTitleClick: (() -> Unit)? = null,
+    titleStyle: androidx.compose.ui.text.TextStyle? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Column {
@@ -88,10 +89,11 @@ fun AppTopBar(
                 } else if (onTitleClick != null) {
                     Text(
                         text = title,
+                        style = titleStyle ?: androidx.compose.material3.LocalTextStyle.current,
                         modifier = Modifier.clickable(onClick = onTitleClick)
                     )
                 } else {
-                    Text(text = title)
+                    Text(text = title, style = titleStyle ?: androidx.compose.material3.LocalTextStyle.current)
                 }
             },
             navigationIcon = {
