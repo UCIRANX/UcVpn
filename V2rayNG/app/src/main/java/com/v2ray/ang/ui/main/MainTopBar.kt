@@ -49,11 +49,19 @@ fun MainTopBar(
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val maxMenuHeight = LocalConfiguration.current.screenHeightDp.dp - statusBarHeight - navBarHeight - 20.dp
 
+    val telegramTitle = androidx.compose.ui.text.buildAnnotatedString {
+        append("Telegram: ")
+        withStyle(androidx.compose.ui.text.SpanStyle(color = androidx.compose.ui.graphics.Color(0xFF3B82F6))) {
+            append("@UCIRANIR")
+        }
+    }
+
     AppTopBar(
         title = "Telegram: @UCIRANIR",
         onBackClick = {},
         onTitleClick = { Utils.openUri(context, "https://t.me/uciranir") },
         titleStyle = MaterialTheme.typography.titleMedium,
+        titleAnnotated = telegramTitle,
         isLoading = isLoading,
         isSearchActive = showSearch,
         searchQuery = searchQuery,
