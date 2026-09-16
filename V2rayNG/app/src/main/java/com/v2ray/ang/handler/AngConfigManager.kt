@@ -482,8 +482,8 @@ object AngConfigManager {
 
             val autoGroup = ProfileItem.create(EConfigType.POLICYGROUP).apply {
                 remarks = AUTOMATIC_POLICY_GROUP_REMARKS
-                subscriptionId = subscriptionId
-                policyGroupType = "0"
+                this.subscriptionId = subscriptionId
+                policyGroupType = "1"
                 policyGroupSubscriptionId = subscriptionId
             }
             val newGuid = MmkvManager.encodeServerConfig("", autoGroup)
