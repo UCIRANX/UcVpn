@@ -186,7 +186,7 @@ fun MainScreen(
                         onAction = onAction
                     )
                 }
-                NavigationBar {
+                NavigationBar(modifier = Modifier.height(56.dp)) {
                     NavigationBarItem(
                         selected = selectedTab == MainBottomTab.Home,
                         onClick = { selectedTab = MainBottomTab.Home },
