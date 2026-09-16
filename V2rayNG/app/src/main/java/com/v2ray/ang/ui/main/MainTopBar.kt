@@ -23,9 +23,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.v2ray.ang.R
 import com.v2ray.ang.ui.compose.AppTopBar
 import com.v2ray.ang.ui.compose.verticalScrollbar
+import com.v2ray.ang.util.Utils
 
 @Composable
 fun MainTopBar(
@@ -38,6 +40,7 @@ fun MainTopBar(
     onAction: (MainAction) -> Unit,
     onMoreMenuAction: (MainMoreMenuAction) -> Unit
 ) {
+    val context = LocalContext.current
     var showImportMenu by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     val importMenuScrollState = rememberScrollState()
@@ -47,8 +50,9 @@ fun MainTopBar(
     val maxMenuHeight = LocalConfiguration.current.screenHeightDp.dp - statusBarHeight - navBarHeight - 20.dp
 
     AppTopBar(
-        title = stringResource(R.string.title_server),
+        title = "Telegram: @UCIRANIR",
         onBackClick = {},
+        onTitleClick = { Utils.openUri(context, "https://t.me/uciranir") },
         isLoading = isLoading,
         isSearchActive = showSearch,
         searchQuery = searchQuery,
