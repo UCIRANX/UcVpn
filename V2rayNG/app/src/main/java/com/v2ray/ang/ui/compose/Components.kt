@@ -73,6 +73,7 @@ fun AppTopBar(
     onSearchClose: () -> Unit = {},
     searchPlaceholder: String? = null,
     navigationIcon: @Composable (() -> Unit)? = null,
+    onTitleClick: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
     Column {
@@ -83,6 +84,11 @@ fun AppTopBar(
                         query = searchQuery,
                         onQueryChange = onSearchQueryChange,
                         placeholder = searchPlaceholder
+                    )
+                } else if (onTitleClick != null) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.clickable(onClick = onTitleClick)
                     )
                 } else {
                     Text(text = title)
