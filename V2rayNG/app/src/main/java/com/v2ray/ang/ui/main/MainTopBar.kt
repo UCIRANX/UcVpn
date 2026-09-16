@@ -53,6 +53,7 @@ fun MainTopBar(
         title = "Telegram: @UCIRANIR",
         onBackClick = {},
         onTitleClick = { Utils.openUri(context, "https://t.me/uciranir") },
+        titleStyle = MaterialTheme.typography.titleMedium,
         isLoading = isLoading,
         isSearchActive = showSearch,
         searchQuery = searchQuery,
