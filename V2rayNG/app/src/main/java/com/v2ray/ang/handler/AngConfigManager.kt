@@ -191,6 +191,9 @@ object AngConfigManager {
             if (count <= 0) {
                 count = parseCustomConfigServer(server, subid, append)
             }
+            if (count > 0 && subid.isNotEmpty()) {
+                ensureAutomaticPolicyGroup(subid)
+            }
 
             var addedSubGuids = parseBatchSubscription(server)
             if (addedSubGuids.isEmpty()) {
@@ -455,6 +458,41 @@ object AngConfigManager {
         subItem.overridePort?.takeIf { it in 1..65535 }?.let { config.serverPort = it.toString() }
     }
 
+    private const val AUTOMATIC_POLICY_GROUP_REMARKS = "Automatic"
+
+    /**
+     * Ensures a pinned "Automatic" (Least Ping) policy group exists for a real subscription,
+     * covering every profile in it. Does nothing if the subscription has no configs, or if
+     * one already exists (so a user-deleted one is naturally recreated on the next update,
+     * and an existing one is left untouched).
+     */
+    private fun ensureAutomaticPolicyGroup(subscriptionId: String) {
+        if (subscriptionId.isBlank()) return
+        try {
+            val serverList = MmkvManager.decodeServerList(subscriptionId)
+            if (serverList.isEmpty()) return
+
+            val alreadyExists = serverList.any { guid ->
+                val profile = MmkvManager.decodeServerConfig(guid)
+                profile?.configType == EConfigType.POLICYGROUP &&
+                        profile.remarks == AUTOMATIC_POLICY_GROUP_REMARKS &&
+                        profile.policyGroupSubscriptionId == subscriptionId
+            }
+            if (alreadyExists) return
+
+            val autoGroup = ProfileItem.create(EConfigType.POLICYGROUP).apply {
+                remarks = AUTOMATIC_POLICY_GROUP_REMARKS
+                subscriptionId = subscriptionId
+                policyGroupType = "0"
+                policyGroupSubscriptionId = subscriptionId
+            }
+            val newGuid = MmkvManager.encodeServerConfig("", autoGroup)
+            MmkvManager.setSelectServer(newGuid)
+        } catch (e: Exception) {
+            LogUtil.e(AppConfig.TAG, "Failed to ensure automatic policy group for $subscriptionId", e)
+        }
+    }
+
     /**
      * Updates the configuration via all subscriptions.
      *
@@ -547,6 +585,7 @@ object AngConfigManager {
             if (count > 0) {
                 it.subscription.lastUpdated = System.currentTimeMillis()
                 MmkvManager.encodeSubscription(it.guid, it.subscription)
+                ensureAutomaticPolicyGroup(it.guid)
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
                 return SubscriptionUpdateResult(
                     configCount = count,
@@ -594,6 +633,19 @@ object AngConfigManager {
             .sortedBy { it.second }
             .map { it.first }
             .toMutableList()
+
+        // Keep the auto-generated "Automatic" policy group pinned at the top.
+        val automaticGuid = sorted.firstOrNull { guid ->
+            val profile = MmkvManager.decodeServerConfig(guid)
+            profile?.configType == EConfigType.POLICYGROUP &&
+                    profile.remarks == AUTOMATIC_POLICY_GROUP_REMARKS &&
+                    profile.policyGroupSubscriptionId == subId
+        }
+        if (automaticGuid != null) {
+            sorted.remove(automaticGuid)
+            sorted.add(0, automaticGuid)
+        }
+
         MmkvManager.encodeServerList(sorted, subId)
     }
 
